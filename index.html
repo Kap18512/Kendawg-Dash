@@ -79,6 +79,34 @@ ul.rows .n { grid-column: 1 / -1; font-size: 0.82rem; color: var(--muted); overf
 .empty { color: var(--muted); font-size: 0.9rem; margin: 0; padding: 14px; border: 1px dashed var(--line); border-radius: 8px; }
 .foot { font-family: var(--font-mono); font-size: 0.7rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 14px; }
 
+.back { display: none; width: 44px; height: 44px; flex: none; border: 1px solid var(--line); border-radius: 8px; background: var(--wash); cursor: pointer; align-items: center; justify-content: center; }
+.back svg { width: 20px; height: 20px; }
+.in-detail .back { display: inline-flex; }
+.brand-row { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.brand-text { min-width: 0; }
+.in-detail .field { display: none; }
+ul.rows li.tap { cursor: pointer; grid-template-columns: minmax(0, 1fr) auto 14px; align-items: center; }
+ul.rows li.tap:hover .l { color: var(--accent); }
+ul.rows li.tap .n { grid-column: 1 / 3; }
+ul.rows li.tap .go { color: var(--muted); font-size: 1.1rem; line-height: 1; grid-row: 1; grid-column: 3; }
+.open { align-self: flex-start; min-height: 40px; padding: 0 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--wash); font-weight: 600; font-size: 0.85rem; cursor: pointer; }
+.detail { display: flex; flex-direction: column; gap: 14px; max-width: 760px; margin: 0 auto; }
+.detail .headline { font-size: 1.15rem; }
+.item { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.item.sel { border-color: var(--accent); }
+.item > summary { list-style: none; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; padding: 14px 16px; cursor: pointer; }
+.item > summary::-webkit-details-marker { display: none; }
+.item .l { font-weight: 600; overflow-wrap: anywhere; }
+.item .v { font-family: var(--font-mono); font-size: 0.9rem; text-align: right; font-variant-numeric: tabular-nums; }
+.item .n { grid-column: 1 / -1; font-size: 0.85rem; color: var(--muted); overflow-wrap: anywhere; }
+.item .more { padding: 0 16px 16px; display: flex; flex-direction: column; gap: 12px; border-top: 1px solid var(--line); padding-top: 12px; }
+.item .body { margin: 0; overflow-wrap: anywhere; }
+dl.facts { margin: 0; display: grid; grid-template-columns: minmax(90px, 34%) minmax(0, 1fr); gap: 6px 14px; font-size: 0.88rem; }
+dl.facts dt { color: var(--muted); }
+dl.facts dd { margin: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.links { display: flex; flex-wrap: wrap; gap: 10px; }
+a.lk { min-height: 44px; padding: 0 16px; border-radius: 8px; background: var(--accent); color: var(--accent-ink); font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; }
+a.lk.alt { background: var(--wash); color: var(--ink); border: 1px solid var(--line); }
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes pulse { 50% { opacity: 0.45; } }
 @media (prefers-reduced-motion: reduce) { .btn.spin svg, .chip.running { animation: none; } }
@@ -87,8 +115,13 @@ ul.rows .n { grid-column: 1 / -1; font-size: 0.82rem; color: var(--muted); overf
 
 <header class="bar"><div class="wrap bar-in">
   <div class="brand">
-    <h1>Kendawg's Dashboard</h1>
-    <div class="stamp" id="stamp">Loading…</div>
+    <div class="brand-row">
+      <button class="back" id="back" aria-label="Back to dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
+      <div class="brand-text">
+        <h1 id="title">Kendawg's Dashboard</h1>
+        <div class="stamp" id="stamp">Loading…</div>
+      </div>
+    </div>
   </div>
   <div class="controls">
     <div class="field">
@@ -111,6 +144,7 @@ ul.rows .n { grid-column: 1 / -1; font-size: 0.82rem; color: var(--muted); overf
 <main class="wrap">
   <div id="notice" class="notice" hidden></div>
   <div class="grid" id="grid"></div>
+  <div class="detail" id="detail" hidden></div>
   <p class="hint" id="hint">Frequency applies to every card. Hourly runs each task 24 times a day.</p>
 </main>
 
@@ -127,7 +161,7 @@ ul.rows .n { grid-column: 1 / -1; font-size: 0.82rem; color: var(--muted); overf
   var FREQ_LABEL = { hourly: "hourly", twice: "twice a day", daily: "daily", weekly: "weekly" };
 
   var $ = function (id) { return document.getElementById(id); };
-  var state = { mcp: null, db: null, triggers: {}, docs: {}, running: {}, runErr: {}, startedAt: 0, poll: null, busy: false, mcpError: null };
+  var state = { mcp: null, db: null, triggers: {}, docs: {}, running: {}, runErr: {}, startedAt: 0, poll: null, busy: false, mcpError: null, view: null, pushed: false };
 
   function cronFor(freq, t) {
     if (freq === "hourly") return "0 * * * *";
@@ -160,6 +194,25 @@ ul.rows .n { grid-column: 1 / -1; font-size: 0.82rem; color: var(--muted); overf
   }
   function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
 
+  function safeUrl(u) { try { var x = new URL(String(u)); return x.protocol === "https:" ? x.href : null; } catch (e) { return null; } }
+  function taskById(id) { return TASKS.filter(function (t) { return t.id === id; })[0]; }
+  function updatedIso(t, doc) {
+    if (!doc || !doc.updatedAt) return null;
+    var tr = state.triggers[t.trigger], fin = tr && tr.last_run && tr.last_run.finished_at;
+    if (fin && Date.parse(doc.updatedAt) > Date.parse(fin)) return fin;
+    return doc.updatedAt;
+  }
+  function openView(id, idx) {
+    state.view = { id: id, idx: idx == null ? -1 : idx };
+    try { history.pushState({ v: 1 }, ""); state.pushed = true; } catch (e) { state.pushed = false; }
+    render(); window.scrollTo(0, 0);
+  }
+  function closeView() {
+    if (state.pushed) { state.pushed = false; try { history.back(); return; } catch (e) {} }
+    state.view = null; render(); window.scrollTo(0, 0);
+  }
+  window.addEventListener("popstate", function () { if (state.view) { state.pushed = false; state.view = null; render(); window.scrollTo(0, 0); } });
+
   function showNotice(msg, warn) {
     var n = $("notice");
     if (!msg) { n.hidden = true; return; }
@@ -186,6 +239,65 @@ ul.rows .n { grid-column: 1 / -1; font-size: 0.82rem; color: var(--muted); overf
     return "idle";
   }
   function render() {
+    document.body.classList.toggle("in-detail", !!state.view);
+    $("grid").hidden = !!state.view; $("detail").hidden = !state.view; $("hint").hidden = !!state.view;
+    if (state.view) renderDetail(); else renderGrid();
+    updateControls();
+  }
+  function renderDetail() {
+    var t = taskById(state.view.id), doc = state.docs[t.id], tr = state.triggers[t.trigger], st = runStatus(t);
+    $("title").textContent = t.name;
+    var up = updatedIso(t, doc);
+    $("stamp").textContent = up ? "Updated " + fmtTime(up) + " · " + ago(up) : t.sub;
+    var box = $("detail"); box.textContent = "";
+    var top = el("div", "card-top"); top.appendChild(el("div", "sub", t.sub));
+    top.appendChild(el("span", "chip " + st, { running: "Running…", failed: "Failed", ok: "Up to date", idle: "Idle" }[st]));
+    box.appendChild(top);
+    if (!doc || (!doc.headline && !(doc.rows && doc.rows.length))) {
+      box.appendChild(el("p", "empty", "Nothing posted yet. Tap Refresh this card, or wait for the next run."));
+      return;
+    }
+    if (doc.flag) box.appendChild(el("div", "flag", String(doc.flag)));
+    if (doc.headline) box.appendChild(el("p", "headline", String(doc.headline)));
+    var rows = Array.isArray(doc.rows) ? doc.rows.slice(0, 12) : [];
+    var selNode = null;
+    rows.forEach(function (r, i) {
+      var sel = i === state.view.idx;
+      var d = el("details", "item" + (sel ? " sel" : ""));
+      if (sel || rows.length <= 4) d.open = true;
+      var sm = el("summary"); sm.appendChild(el("span", "l", String(r.label || "")));
+      if (r.value) sm.appendChild(el("span", "v", String(r.value)));
+      if (r.note) sm.appendChild(el("span", "n", String(r.note)));
+      d.appendChild(sm);
+      var facts = Array.isArray(r.detail) ? r.detail.slice(0, 12) : [], links = Array.isArray(r.links) ? r.links.slice(0, 4) : [];
+      if (r.body || facts.length || links.length) {
+        var more = el("div", "more");
+        if (r.body) more.appendChild(el("p", "body", String(r.body)));
+        if (facts.length) {
+          var dl = el("dl", "facts");
+          facts.forEach(function (f) { if (f && f.v != null && f.v !== "") { dl.appendChild(el("dt", null, String(f.k || ""))); dl.appendChild(el("dd", null, String(f.v))); } });
+          more.appendChild(dl);
+        }
+        if (links.length) {
+          var lw = el("div", "links");
+          links.forEach(function (l, j) {
+            var href = l && safeUrl(l.url); if (!href) return;
+            var a = el("a", "lk" + (j ? " alt" : ""), String(l.label || "Open")); a.href = href; a.target = "_blank"; a.rel = "noopener noreferrer";
+            lw.appendChild(a);
+          });
+          if (lw.childNodes.length) more.appendChild(lw);
+        }
+        d.appendChild(more);
+      }
+      box.appendChild(d); if (sel) selNode = d;
+    });
+    var foot = el("div", "foot");
+    if (tr && tr.next_run_at) foot.appendChild(el("span", null, "Next run " + fmtTime(tr.next_run_at)));
+    box.appendChild(foot);
+    if (selNode) setTimeout(function () { try { selNode.scrollIntoView({ block: "start" }); } catch (e) {} }, 0);
+  }
+  function renderGrid() {
+    $("title").textContent = "Kendawg's Dashboard";
     var grid = $("grid"); grid.textContent = "";
     var newest = 0;
     TASKS.forEach(function (t) {
@@ -202,26 +314,34 @@ ul.rows .n { grid-column: 1 / -1; font-size: 0.82rem; color: var(--muted); overf
         if (doc.headline) card.appendChild(el("p", "headline", String(doc.headline)));
         if (Array.isArray(doc.rows) && doc.rows.length) {
           var ul = el("ul", "rows");
-          doc.rows.slice(0, 12).forEach(function (r) {
-            var li = el("li"); li.appendChild(el("span", "l", String(r.label || "")));
-            if (r.value) li.appendChild(el("span", "v", String(r.value)));
+          doc.rows.slice(0, 12).forEach(function (r, i) {
+            var li = el("li", "tap"); li.tabIndex = 0; li.setAttribute("role", "button");
+            li.appendChild(el("span", "l", String(r.label || "")));
+            li.appendChild(el("span", "v", r.value ? String(r.value) : ""));
+            li.appendChild(el("span", "go", "›"));
             if (r.note) li.appendChild(el("span", "n", String(r.note)));
+            var go = function () { openView(t.id, i); };
+            li.addEventListener("click", go);
+            li.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } });
             ul.appendChild(li);
           });
           card.appendChild(ul);
         }
-        var at = Date.parse(doc.updatedAt); if (at > newest) newest = at;
+        var upIso = updatedIso(t, doc), at = Date.parse(upIso); if (at > newest) newest = at;
       } else {
         card.appendChild(el("p", "empty", "Nothing posted yet. This card fills in after the next run of “" + t.sub + "”."));
       }
       var foot = el("div", "foot");
-      if (doc && doc.updatedAt) foot.appendChild(el("span", null, "Updated " + fmtTime(doc.updatedAt) + " · " + ago(doc.updatedAt)));
+      var upShown = updatedIso(t, doc);
+      if (upShown) foot.appendChild(el("span", null, "Updated " + fmtTime(upShown) + " · " + ago(upShown)));
       if (tr && tr.next_run_at) foot.appendChild(el("span", null, "Next run " + fmtTime(tr.next_run_at)));
       card.appendChild(foot);
+      var ob = el("button", "open", "Open full view ›"); ob.type = "button";
+      ob.addEventListener("click", function () { openView(t.id, -1); });
+      card.appendChild(ob);
       grid.appendChild(card);
     });
     $("stamp").textContent = newest ? "Last refreshed " + fmtTime(new Date(newest).toISOString()) : "No results yet";
-    updateControls();
   }
 
   function updateControls() {
@@ -229,7 +349,7 @@ ul.rows .n { grid-column: 1 / -1; font-size: 0.82rem; color: var(--muted); overf
     $("refresh").disabled = !ready;
     $("freq").disabled = !state.mcp || state.busy || anyRunning();
     $("refresh").classList.toggle("spin", anyRunning());
-    $("refresh-label").textContent = anyRunning() ? "Refreshing…" : "Refresh all";
+    $("refresh-label").textContent = anyRunning() ? "Refreshing…" : (state.view ? "Refresh this card" : "Refresh all");
     var fs = {};
     TASKS.forEach(function (t) { var tr = state.triggers[t.trigger]; if (tr) fs[freqOf(tr.cron_expression) || "x"] = 1; });
     var keys = Object.keys(fs), sel = $("freq");
@@ -253,7 +373,8 @@ ul.rows .n { grid-column: 1 / -1; font-size: 0.82rem; color: var(--muted); overf
         if (!state.running[t.id]) return;
         var lr = state.triggers[t.trigger] && state.triggers[t.trigger].last_run;
         var fired = lr && Date.parse(lr.fired_at), fin = lr && Date.parse(lr.finished_at);
-        if (fired >= state.startedAt - 5000 && fin) {
+        var dd = state.docs[t.id], fresh = dd && Date.parse(dd.updatedAt) >= state.startedAt - 60000;
+        if (fresh || (fired >= state.startedAt - 5000 && fin)) {
           state.running[t.id] = false;
           if (/FAIL/i.test(lr.status || "")) state.runErr[t.id] = true;
         }
@@ -265,10 +386,11 @@ ul.rows .n { grid-column: 1 / -1; font-size: 0.82rem; color: var(--muted); overf
   }
 
   function refreshAll() {
+    var list = state.view ? [taskById(state.view.id)] : TASKS;
     state.busy = true; state.startedAt = Date.now(); state.runErr = {};
-    TASKS.forEach(function (t) { state.running[t.id] = true; });
+    list.forEach(function (t) { state.running[t.id] = true; });
     showNotice(null); render();
-    Promise.all(TASKS.map(function (t) {
+    Promise.all(list.map(function (t) {
       return state.mcp.callTool(SERVER, "fire_trigger", { trigger_id: t.trigger }, { cache: false }).catch(function (e) {
         state.running[t.id] = false; state.runErr[t.id] = true; showNotice(explain(e), true);
       });
@@ -296,6 +418,7 @@ ul.rows .n { grid-column: 1 / -1; font-size: 0.82rem; color: var(--muted); overf
 
   /* ---------- boot ---------- */
   $("refresh").addEventListener("click", refreshAll);
+  $("back").addEventListener("click", closeView);
   $("freq").addEventListener("change", function (e) { applyFrequency(e.target.value); });
   render();
 
@@ -305,7 +428,9 @@ ul.rows .n { grid-column: 1 / -1; font-size: 0.82rem; color: var(--muted); overf
     state.db = db;
     db.collection("cards").onSnapshot(function (snap) {
       var next = {}; snap.docs.forEach(function (d) { if (d.exists) next[d.id] = d.data(); });
-      state.docs = next; render();
+      state.docs = next;
+      TASKS.forEach(function (t) { var dd = next[t.id]; if (state.running[t.id] && dd && Date.parse(dd.updatedAt) >= state.startedAt - 60000) state.running[t.id] = false; });
+      render();
     }, function () {});
   }).catch(function () {});
 
