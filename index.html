@@ -1,0 +1,317 @@
+<title>Kendawg's Dashboard</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: sticky control bar over a responsive grid of task cards, one card per scheduled run. */
+:root {
+  --bg: #e9eef1;
+  --surface: #f8fafb;
+  --ink: #12222b;
+  --muted: #586b76;
+  --line: #cfd9de;
+  --accent: #0b7f86;
+  --accent-ink: #ffffff;
+  --alert: #c9401a;
+  --ok: #26804f;
+  --wash: #dde6ea;
+  --font-display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", sans-serif;
+  --font-body: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d181f; --surface: #15252e; --ink: #e5eef2; --muted: #92a6b1; --line: #25394380;
+    --accent: #3cc4c4; --accent-ink: #072326; --alert: #ff7a59; --ok: #5bcb8a; --wash: #1c303a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d181f; --surface: #15252e; --ink: #e5eef2; --muted: #92a6b1; --line: #25394380;
+  --accent: #3cc4c4; --accent-ink: #072326; --alert: #ff7a59; --ok: #5bcb8a; --wash: #1c303a;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.45; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--surface); }
+.wrap { max-width: 1180px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+
+header.bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 9; background: var(--surface); border-bottom: 1px solid var(--line); }
+.bar-in { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; padding-block: 14px; }
+.brand { flex: 1 1 220px; min-width: 0; }
+h1 { font-family: var(--font-display); font-weight: 800; font-size: 1.7rem; letter-spacing: -0.02em; line-height: 1.05; margin: 0; text-wrap: balance; }
+.stamp { font-family: var(--font-mono); font-size: 0.75rem; color: var(--muted); margin-top: 4px; }
+.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.field { display: flex; flex-direction: column; gap: 2px; }
+.field label { font-size: 0.68rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+select, button { font: inherit; color: inherit; }
+select { min-height: 44px; padding: 0 34px 0 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--wash); appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position: calc(100% - 17px) 19px, calc(100% - 12px) 19px; background-size: 5px 5px; background-repeat: no-repeat; }
+.btn { min-height: 44px; padding: 0 20px; border: 0; border-radius: 8px; background: var(--accent); color: var(--accent-ink); font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; align-self: flex-end; }
+.btn:disabled, select:disabled { opacity: 0.55; cursor: not-allowed; }
+.btn svg { width: 16px; height: 16px; }
+.btn.spin svg { animation: spin 1s linear infinite; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+.notice { margin-top: 16px; padding: 10px 14px; border-radius: 8px; background: var(--wash); border: 1px solid var(--line); font-size: 0.9rem; }
+.notice.warn { border-color: var(--alert); }
+.hint { font-size: 0.78rem; color: var(--muted); margin: 14px 0 0; }
+
+main { padding-block: 18px 40px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 330px), 1fr)); gap: 16px; align-items: start; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.card h2 { font-family: var(--font-display); font-weight: 600; font-size: 1.2rem; letter-spacing: -0.01em; margin: 0; }
+.card .sub { font-size: 0.78rem; color: var(--muted); }
+.chip { flex: none; font-family: var(--font-mono); font-size: 0.7rem; padding: 3px 9px; border-radius: 99px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.chip.running { color: var(--accent); border-color: var(--accent); animation: pulse 1.4s ease-in-out infinite; }
+.chip.ok { color: var(--ok); border-color: var(--ok); }
+.chip.failed { color: var(--alert); border-color: var(--alert); }
+.headline { font-size: 1.02rem; font-weight: 500; margin: 0; overflow-wrap: anywhere; }
+.flag { align-self: flex-start; font-size: 0.78rem; font-weight: 600; padding: 3px 10px; border-radius: 6px; background: var(--alert); color: var(--surface); }
+ul.rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+ul.rows li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; padding: 9px 0; border-top: 1px solid var(--line); }
+ul.rows .l { font-weight: 500; overflow-wrap: anywhere; }
+ul.rows .v { font-family: var(--font-mono); font-size: 0.85rem; text-align: right; font-variant-numeric: tabular-nums; }
+ul.rows .n { grid-column: 1 / -1; font-size: 0.82rem; color: var(--muted); overflow-wrap: anywhere; }
+.empty { color: var(--muted); font-size: 0.9rem; margin: 0; padding: 14px; border: 1px dashed var(--line); border-radius: 8px; }
+.foot { font-family: var(--font-mono); font-size: 0.7rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 14px; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes pulse { 50% { opacity: 0.45; } }
+@media (prefers-reduced-motion: reduce) { .btn.spin svg, .chip.running { animation: none; } }
+@media (max-width: 520px) { h1 { font-size: 1.45rem; } .controls { width: 100%; } .field { flex: 1 1 140px; } select { width: 100%; } .btn { flex: 1 1 100%; justify-content: center; } }
+</style>
+
+<header class="bar"><div class="wrap bar-in">
+  <div class="brand">
+    <h1>Kendawg's Dashboard</h1>
+    <div class="stamp" id="stamp">Loading…</div>
+  </div>
+  <div class="controls">
+    <div class="field">
+      <label for="freq">Refresh frequency</label>
+      <select id="freq" disabled>
+        <option value="hourly">Hourly</option>
+        <option value="twice">2× a day</option>
+        <option value="daily">Daily</option>
+        <option value="weekly">Weekly (Mon)</option>
+        <option value="mixed" hidden>Mixed</option>
+      </select>
+    </div>
+    <button class="btn" id="refresh" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>
+      <span id="refresh-label">Refresh all</span>
+    </button>
+  </div>
+</div></header>
+
+<main class="wrap">
+  <div id="notice" class="notice" hidden></div>
+  <div class="grid" id="grid"></div>
+  <p class="hint" id="hint">Frequency applies to every card. Hourly runs each task 24 times a day.</p>
+</main>
+
+<script>
+(function () {
+  var TZ = "CRON_TZ=America/New_York ";
+  var SERVER = "Claude Code Remote";
+  var TASKS = [
+    { id: "packages", trigger: "trig_01FC5JjofdUMZmrm2XZck14f", name: "Packages", sub: "Daily package tracker", m: 55, h: 8 },
+    { id: "weather", trigger: "trig_012wAR5iDhTbBp7nLDSZiokj", name: "Rain & weather", sub: "Homestead, FL outlook", m: 57, h: 8 },
+    { id: "bambu", trigger: "trig_01STCgUgWZnB3JFnKXPBipSS", name: "Bambu P1S prices", sub: "Price watch, buy by Dec 31", m: 42, h: 7 }
+  ];
+  var FREQ_LABEL = { hourly: "hourly", twice: "twice a day", daily: "daily", weekly: "weekly" };
+
+  var $ = function (id) { return document.getElementById(id); };
+  var state = { mcp: null, db: null, triggers: {}, docs: {}, running: {}, runErr: {}, startedAt: 0, poll: null, busy: false, mcpError: null };
+
+  function cronFor(freq, t) {
+    if (freq === "hourly") return "0 * * * *";
+    if (freq === "twice") return TZ + t.m + " " + t.h + "," + (t.h + 10) + " * * *";
+    if (freq === "weekly") return TZ + t.m + " " + t.h + " * * 1";
+    return TZ + t.m + " " + t.h + " * * *";
+  }
+  function freqOf(cron) {
+    if (!cron) return null;
+    var f = cron.replace(/^CRON_TZ=\S+\s+/, "").trim().split(/\s+/);
+    if (f.length < 5) return null;
+    if (f[1] === "*") return "hourly";
+    if (f[4] !== "*") return "weekly";
+    if (f[1].indexOf(",") >= 0) return "twice";
+    return "daily";
+  }
+  function fmtTime(iso) {
+    if (!iso) return "never";
+    var d = new Date(iso); if (isNaN(d)) return "unknown";
+    var now = new Date(), same = d.toDateString() === now.toDateString();
+    var t = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    return same ? t : d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" }) + " " + t;
+  }
+  function ago(iso) {
+    var d = new Date(iso); if (isNaN(d)) return "";
+    var m = Math.round((Date.now() - d) / 60000);
+    if (m < 1) return "just now"; if (m < 60) return m + " min ago";
+    var h = Math.round(m / 60); if (h < 24) return h + " h ago";
+    return Math.round(h / 24) + " d ago";
+  }
+  function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+
+  function showNotice(msg, warn) {
+    var n = $("notice");
+    if (!msg) { n.hidden = true; return; }
+    n.textContent = msg; n.className = "notice" + (warn ? " warn" : ""); n.hidden = false;
+  }
+  function explain(err) {
+    var c = err && err.code;
+    if (c === "approval_required" || c === "not_in_manifest" || c === "consent_required") return "Allow this page to use Claude Code Remote when Claude asks, then try again.";
+    if (c === "server_not_connected" || c === "selection_required") return "The Claude Code Remote connector isn't available to your account. Add it in Claude Settings → Connectors.";
+    if (c === "needs_reauth") return "Reconnect Claude Code Remote in Claude Settings → Connectors.";
+    if (c === "blocked_by_policy") return "Your organization blocks this action.";
+    if (c === "not_granted" || c === "capability_disabled" || c === "capability_removed") return "Open this page in Claude to refresh. Viewing works anywhere.";
+    return "Couldn't reach your scheduled tasks" + (err && err.message ? " (" + err.message + ")" : "") + ". Try again in a moment.";
+  }
+
+  /* ---------- render ---------- */
+  function runStatus(t) {
+    var tr = state.triggers[t.trigger];
+    if (state.running[t.id]) return "running";
+    if (state.runErr[t.id]) return "failed";
+    var s = tr && tr.last_run && tr.last_run.status;
+    if (s && /FAIL/i.test(s)) return "failed";
+    if (s && /SUCCEED/i.test(s)) return "ok";
+    return "idle";
+  }
+  function render() {
+    var grid = $("grid"); grid.textContent = "";
+    var newest = 0;
+    TASKS.forEach(function (t) {
+      var doc = state.docs[t.id], tr = state.triggers[t.trigger], st = runStatus(t);
+      var card = el("section", "card");
+      var top = el("div", "card-top");
+      var ttl = el("div"); ttl.appendChild(el("h2", null, t.name)); ttl.appendChild(el("div", "sub", t.sub));
+      top.appendChild(ttl);
+      top.appendChild(el("span", "chip " + st, { running: "Running…", failed: "Failed", ok: "Up to date", idle: "Idle" }[st]));
+      card.appendChild(top);
+
+      if (doc && (doc.headline || (doc.rows && doc.rows.length))) {
+        if (doc.flag) card.appendChild(el("div", "flag", String(doc.flag)));
+        if (doc.headline) card.appendChild(el("p", "headline", String(doc.headline)));
+        if (Array.isArray(doc.rows) && doc.rows.length) {
+          var ul = el("ul", "rows");
+          doc.rows.slice(0, 12).forEach(function (r) {
+            var li = el("li"); li.appendChild(el("span", "l", String(r.label || "")));
+            if (r.value) li.appendChild(el("span", "v", String(r.value)));
+            if (r.note) li.appendChild(el("span", "n", String(r.note)));
+            ul.appendChild(li);
+          });
+          card.appendChild(ul);
+        }
+        var at = Date.parse(doc.updatedAt); if (at > newest) newest = at;
+      } else {
+        card.appendChild(el("p", "empty", "Nothing posted yet. This card fills in after the next run of “" + t.sub + "”."));
+      }
+      var foot = el("div", "foot");
+      if (doc && doc.updatedAt) foot.appendChild(el("span", null, "Updated " + fmtTime(doc.updatedAt) + " · " + ago(doc.updatedAt)));
+      if (tr && tr.next_run_at) foot.appendChild(el("span", null, "Next run " + fmtTime(tr.next_run_at)));
+      card.appendChild(foot);
+      grid.appendChild(card);
+    });
+    $("stamp").textContent = newest ? "Last refreshed " + fmtTime(new Date(newest).toISOString()) : "No results yet";
+    updateControls();
+  }
+
+  function updateControls() {
+    var ready = !!state.mcp && !state.busy && !anyRunning();
+    $("refresh").disabled = !ready;
+    $("freq").disabled = !state.mcp || state.busy || anyRunning();
+    $("refresh").classList.toggle("spin", anyRunning());
+    $("refresh-label").textContent = anyRunning() ? "Refreshing…" : "Refresh all";
+    var fs = {};
+    TASKS.forEach(function (t) { var tr = state.triggers[t.trigger]; if (tr) fs[freqOf(tr.cron_expression) || "x"] = 1; });
+    var keys = Object.keys(fs), sel = $("freq");
+    if (keys.length === 1 && keys[0] !== "x") sel.value = keys[0];
+    else if (keys.length) { sel.querySelector('[value="mixed"]').hidden = false; sel.value = "mixed"; }
+  }
+  function anyRunning() { return TASKS.some(function (t) { return state.running[t.id]; }); }
+
+  /* ---------- connector calls ---------- */
+  function listTriggers() {
+    return state.mcp.callTool(SERVER, "list_triggers", { limit: 100 }, { cache: false }).then(function (res) {
+      var p = res.payload; if (typeof p === "string") { try { p = JSON.parse(p); } catch (e) { p = null; } }
+      var arr = (p && (p.data || p.triggers)) || (Array.isArray(p) ? p : []);
+      arr.forEach(function (tr) { state.triggers[tr.id] = tr; });
+      showNotice(null);
+    });
+  }
+  function checkRuns() {
+    return listTriggers().then(function () {
+      TASKS.forEach(function (t) {
+        if (!state.running[t.id]) return;
+        var lr = state.triggers[t.trigger] && state.triggers[t.trigger].last_run;
+        var fired = lr && Date.parse(lr.fired_at), fin = lr && Date.parse(lr.finished_at);
+        if (fired >= state.startedAt - 5000 && fin) {
+          state.running[t.id] = false;
+          if (/FAIL/i.test(lr.status || "")) state.runErr[t.id] = true;
+        }
+      });
+      if (Date.now() - state.startedAt > 10 * 60 * 1000) TASKS.forEach(function (t) { if (state.running[t.id]) { state.running[t.id] = false; state.runErr[t.id] = true; } });
+      if (!anyRunning()) { clearInterval(state.poll); state.poll = null; state.mcp.invalidate().catch(function () {}); }
+      render();
+    }).catch(function (e) { showNotice(explain(e), true); });
+  }
+
+  function refreshAll() {
+    state.busy = true; state.startedAt = Date.now(); state.runErr = {};
+    TASKS.forEach(function (t) { state.running[t.id] = true; });
+    showNotice(null); render();
+    Promise.all(TASKS.map(function (t) {
+      return state.mcp.callTool(SERVER, "fire_trigger", { trigger_id: t.trigger }, { cache: false }).catch(function (e) {
+        state.running[t.id] = false; state.runErr[t.id] = true; showNotice(explain(e), true);
+      });
+    })).then(function () {
+      state.busy = false; render();
+      if (anyRunning()) { state.poll = setInterval(checkRuns, 20000); setTimeout(checkRuns, 8000); }
+    });
+  }
+
+  function applyFrequency(freq) {
+    if (!FREQ_LABEL[freq]) return;
+    state.busy = true; updateControls(); showNotice("Setting every task to " + FREQ_LABEL[freq] + "…");
+    var p = Promise.resolve(), failed = null;
+    TASKS.forEach(function (t) {
+      p = p.then(function () {
+        return state.mcp.callTool(SERVER, "update_trigger", { trigger_id: t.trigger, cron_expression: cronFor(freq, t) }, { cache: false }).catch(function (e) { failed = failed || e; });
+      });
+    });
+    p.then(function () { return listTriggers().catch(function () {}); }).then(function () {
+      state.busy = false;
+      showNotice(failed ? explain(failed) : "All tasks now run " + FREQ_LABEL[freq] + ".", !!failed);
+      render();
+    });
+  }
+
+  /* ---------- boot ---------- */
+  $("refresh").addEventListener("click", refreshAll);
+  $("freq").addEventListener("change", function (e) { applyFrequency(e.target.value); });
+  render();
+
+  var C = window.claude && window.claude.use ? window.claude : { use: function () { return Promise.resolve(null); } };
+  C.use("db").then(function (db) {
+    if (!db) return;
+    state.db = db;
+    db.collection("cards").onSnapshot(function (snap) {
+      var next = {}; snap.docs.forEach(function (d) { if (d.exists) next[d.id] = d.data(); });
+      state.docs = next; render();
+    }, function () {});
+  }).catch(function () {});
+
+  C.use("mcp").then(function (mcp) {
+    if (!mcp) { showNotice("Open this page in Claude to use Refresh and frequency. Viewing works anywhere.", false); return; }
+    state.mcp = mcp; updateControls();
+    return listTriggers().then(render).catch(function (e) { showNotice(explain(e), true); });
+  }).catch(function () {});
+})();
+</script>
